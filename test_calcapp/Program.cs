@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace test_calcapp
 {
@@ -12,11 +8,12 @@ namespace test_calcapp
         {
             double result = parser.Process(expr);
 
-            string outcome = result == expected ? "OK" : "NOK " + expected.ToString();
+            // ReSharper disable once CompareOfFloatsByEqualityOperator
+            string outcome =  result == expected ? "OK" : "NOK " + expected;
             Console.WriteLine("{0} --> {1} ({2})", expr, result, outcome);
         }
 
-        static void Main(string[] args)
+        static void Main()
         {
             using (var parser = ParserFactory.CreateDefault())
             {

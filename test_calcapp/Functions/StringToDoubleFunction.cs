@@ -1,26 +1,25 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using test_calcapp.Functions.Abstract;
 
 namespace test_calcapp.Functions
 {
     class StringToDoubleFunction : Function
     {
+        private readonly string _item;
+
         public StringToDoubleFunction(string item)
         {
-            Item = item;
+            _item = item;
         }
-        public override double Evaluate(ExecFunc<string, int, char, double> function, string data, ref int from)
+        public override double Evaluate(ExecFunc function, string data, ref int from)
         {
-            if (!double.TryParse(Item, out double num))
+            double num;
+            if (!double.TryParse(_item, out num))
             {
-                throw new ArgumentException("Could not parse token [" + Item + "]");
+                throw new ArgumentException("Could not parse token [" + _item + "]");
             }
             return num;
         }
-        public string Item { private get; set; }
+        
     }
 }

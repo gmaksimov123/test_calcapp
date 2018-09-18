@@ -12,6 +12,7 @@ namespace test_calcapp.Operations
 
         public override double Execute(double operandLeft, double operandRight)
         {
+            // ReSharper disable once CompareOfFloatsByEqualityOperator
             if ( operandRight == 0 )
             {
                 throw new ArgumentException("Division by zero");

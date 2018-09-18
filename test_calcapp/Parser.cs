@@ -1,9 +1,7 @@
 ﻿using Ninject;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using test_calcapp.Operations.Abstract;
 using test_calcapp.Functions.Abstract;
 using Ninject.Parameters;
@@ -13,41 +11,39 @@ namespace test_calcapp
 {
     public class Parser : IDisposable
     {
-        public const char START_ARG = '(';
-        public const char END_ARG = ')';
-        public const char END_LINE = '\n';
+        public const char StartArg = '(';
+        public const char EndArg = ')';
+        public const char EndLine = '\n';
 
-        protected IKernel kernel;
+        private readonly IKernel _kernel;
 
-        public Parser(params NinjectModule[] modules)
+        public Parser(params INinjectModule[] modules)
         {
-            kernel = new StandardKernel(modules);
+            _kernel = new StandardKernel(modules);
         }
 
         protected class Cell
         {
-            internal Cell(double value, char action, Operation action_new)
+            internal Cell(double value, Operation action)
             {
                 Value = value;
-                Action_old = action;
-                Action = action_new;
+                Action = action;
             }
 
             internal double Value { get; set; }
-            internal char Action_old { get; set; }
             internal Operation Action { get; set; }
         }
 
         public double Process(string data)
         {
             // Get rid of spaces and check parenthesis
-            var expression = Preprocess(data);
+            Preprocess(data);
             var from = 0;
 
-            return LoadAndCalculate(data, ref from, END_LINE);
+            return LoadAndCalculate(data, ref from);
         }
 
-        protected string Preprocess(string data)
+        protected void Preprocess(string data)
         {
             if ( string.IsNullOrEmpty(data) )
             {
@@ -57,21 +53,23 @@ namespace test_calcapp
             var parentheses = 0;
             var result = new StringBuilder(data.Length);
 
-            for (var i = 0; i < data.Length; i++ )
+            foreach (var ch in data)
             {
-                var ch = data[i];
-                switch ( ch )
+                if (ch == ' ' || ch == '\t' || ch == '\n')
                 {
-                    case ' ':
-                    case '\t':
-                    case '\n': continue;
-                    case END_ARG:
-                        parentheses--;
-                        break;
-                    case START_ARG:
-                        parentheses++;
-                        break;
+                    continue;
                 }
+
+                if (ch == EndArg)
+                {
+                    parentheses--;
+
+                }
+                else if ( ch == StartArg )
+                {
+                     parentheses++;
+                }
+
                 result.Append(ch);
             }
 
@@ -79,11 +77,9 @@ namespace test_calcapp
             {
                 throw new ArgumentException("Uneven parenthesis");
             }
-
-            return result.ToString();
         }
 
-        protected double LoadAndCalculate(string data, ref int from, char to = END_LINE)
+        protected double LoadAndCalculate(string data, ref int from, char to = EndLine)
         {
             if ( from >= data.Length || data[from] == to )
             {
@@ -93,11 +89,18 @@ namespace test_calcapp
             var listToMerge = new List<Cell>(16);
             var item = new StringBuilder();
 
-            do
-            { // Main processing cycle of the first part.
+            while (from < data.Length && data[from] != to)
+            {
                 var ch = data[from++];
-                if ( StillCollecting(item.ToString(), ch, to) )
-                { // The char still belongs to the previous operand.
+
+                var stopCollecting = to == EndArg || to == EndLine ? EndArg : to;
+
+                var stillCollecting = item.Length == 0 && (ch == '-' || ch == EndArg) ||
+                       !(ValidAction(ch) || ch == StartArg || ch == stopCollecting);
+
+                if ( stillCollecting )
+                { 
+                    // The char still belongs to the previous operand.
                     item.Append(ch);
                     if ( from < data.Length && data[from] != to )
                     {
@@ -111,17 +114,15 @@ namespace test_calcapp
                 var func = GetFunction(item.ToString(), ch);
                 var value = func.Evaluate(LoadAndCalculate, data, ref from);
 
-                var action = ValidAction(ch) ? ch
-                                              : UpdateAction(data, ref from, ch, to);
+                var operation = GetOperation(ch) ?? UpdateAction(data, ref from, ch, to);
 
-                listToMerge.Add(new Cell(value, action, kernel.TryGet<Operation>(action.ToString())));
+                listToMerge.Add(new Cell(value, operation));
                 item.Clear();
+            }
 
-            } while ( from < data.Length && data[from] != to );
-
-            if ( from < data.Length &&
-               (data[from] == END_ARG || data[from] == to) )
-            { // This happens when called recursively: move one char forward.
+            if ( from < data.Length && (data[from] == EndArg || data[from] == to) )
+            { 
+                // This happens when called recursively: move one char forward.
                 from++;
             }
 
@@ -131,38 +132,45 @@ namespace test_calcapp
             return Merge(baseCell, ref index, listToMerge);
         }
 
-        protected bool StillCollecting(string item, char ch, char to)
-        {
-            // Stop collecting if either got END_ARG ')' or to char, e.g. ','.
-            var stopCollecting = (to == END_ARG || to == END_LINE) ?
-                                   END_ARG : to;
-            return (item.Length == 0 && (ch == '-' || ch == END_ARG)) ||
-                  !(ValidAction(ch) || ch == START_ARG || ch == stopCollecting);
-        }
 
         protected bool ValidAction(char ch)
         {
-            return kernel.TryGet<Operation>(ch.ToString()) != null;
+            return GetOperation(ch) != null;
         }
 
-        protected char UpdateAction(string item, ref int from, char ch, char to)
+        protected Operation GetOperation(char ch)
         {
-            if ( from >= item.Length || item[from] == END_ARG || item[from] == to )
+            return _kernel.TryGet<Operation>(ch.ToString());
+        }
+
+        protected Operation UpdateAction(string item, ref int from, char ch, char to)
+        {
+            if ( from >= item.Length || item[from] == EndArg || item[from] == to )
             {
-                return END_ARG;
+                return null;
             }
 
             var index = from;
             var res = ch;
-            while ( !ValidAction(res) && index < item.Length )
-            { // Look for the next character in string until a valid action is found.
+
+            var operation = GetOperation(res);
+
+            while ( operation == null && index < item.Length )
+            { 
+                // Look for the next character in string until a valid action is found.
                 res = item[index++];
+                operation = GetOperation(res);
             }
 
-            from = ValidAction(res) ? index
-                                    : index > from ? index - 1
-                                                   : from;
-            return res;
+            if ( operation != null)
+            {
+                from = index;
+            }
+            else
+            {
+                from = index > from ? index - 1 : from;
+            }
+            return operation;
         }
 
         // From outside this function is called with mergeOneOnly = false.
@@ -198,8 +206,8 @@ namespace test_calcapp
             {
                 leftCell.Value = leftCell.Action.Execute(leftCell.Value, rightCell.Value);
             }
-            leftCell.Action = rightCell.Action;
-            
+
+            leftCell.Action = rightCell.Action;           
         }
 
         protected bool CanMergeCells(Cell leftCell, Cell rightCell)
@@ -213,26 +221,20 @@ namespace test_calcapp
         }
         protected Function GetFunction(string item, char ch)
         {
-            if (item.Length == 0 && ch == START_ARG)
+            if (item.Length == 0 && ch == StartArg)
             {
                 // There is no function, just an expression in parentheses
-                return kernel.Get<Function>("Identity");
+                return _kernel.Get<Function>("Identity");
             }
-            var m_impl = kernel.TryGet<Function>(item);
+            var mImpl = _kernel.TryGet<Function>(item);
 
-            if (m_impl != null)
-            {
-                // Function exists and is registered (e.g. pi, exp, etc.)
-                return m_impl;
-            }
-
-            // Function not found, will try to parse this as a number.
-            return kernel.Get<Function>("StringToDouble", new ConstructorArgument("item", item));
+            // ?? Function not found, will try to parse this as a number.
+            return mImpl ?? _kernel.Get<Function>("StringToDouble", new ConstructorArgument("item", item));
         }
 
         public void Dispose()
         {
-            kernel.Dispose();
+            _kernel.Dispose();
         }
     }
 

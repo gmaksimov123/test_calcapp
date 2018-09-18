@@ -1,13 +1,9 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using test_calcapp;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Globalization;
+using test_calcapp;
 
-namespace test_calcapp.Tests
+namespace test_calcappTests
 {
     [TestClass()]
     public class ParserTests

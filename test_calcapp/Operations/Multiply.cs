@@ -1,5 +1,4 @@
-﻿using System;
-using test_calcapp.Operations.Abstract;
+﻿using test_calcapp.Operations.Abstract;
 namespace test_calcapp.Operations
 {
     public class Multiply : Operation

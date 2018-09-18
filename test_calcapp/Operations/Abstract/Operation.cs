@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace test_calcapp.Operations.Abstract
+﻿namespace test_calcapp.Operations.Abstract
 {
     public abstract class Operation
     {
