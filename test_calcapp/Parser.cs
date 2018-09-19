@@ -92,11 +92,12 @@ namespace test_calcapp
             while (from < data.Length && data[from] != to)
             {
                 var ch = data[from++];
+                var operation = GetOperation(ch);
 
-                var stopCollecting = to == EndArg || to == EndLine ? EndArg : to;
+                var stopCollecting = (to == EndArg || to == EndLine) ? EndArg : to;
 
-                var stillCollecting = item.Length == 0 && (ch == '-' || ch == EndArg) ||
-                       !(ValidAction(ch) || ch == StartArg || ch == stopCollecting);
+                var stillCollecting = (item.Length == 0 && (ch == '-' || ch == EndArg)) ||
+                       !(operation != null || ch == StartArg || ch == stopCollecting);
 
                 if ( stillCollecting )
                 { 
@@ -114,7 +115,7 @@ namespace test_calcapp
                 var func = GetFunction(item.ToString(), ch);
                 var value = func.Evaluate(LoadAndCalculate, data, ref from);
 
-                var operation = GetOperation(ch) ?? UpdateAction(data, ref from, ch, to);
+                operation = operation ?? UpdateOperation(data, ref from, ch, to);
 
                 listToMerge.Add(new Cell(value, operation));
                 item.Clear();
@@ -132,18 +133,12 @@ namespace test_calcapp
             return Merge(baseCell, ref index, listToMerge);
         }
 
-
-        protected bool ValidAction(char ch)
-        {
-            return GetOperation(ch) != null;
-        }
-
         protected Operation GetOperation(char ch)
         {
             return _kernel.TryGet<Operation>(ch.ToString());
         }
 
-        protected Operation UpdateAction(string item, ref int from, char ch, char to)
+        protected Operation UpdateOperation(string item, ref int from, char ch, char to)
         {
             if ( from >= item.Length || item[from] == EndArg || item[from] == to )
             {
@@ -176,17 +171,17 @@ namespace test_calcapp
         // From outside this function is called with mergeOneOnly = false.
         // It also calls itself recursively with mergeOneOnly = true, meaning
         // that it will return after only one merge.
-        protected double Merge(Cell current, ref int index, List<Cell> listToMerge,
-                     bool mergeOneOnly = false)
+        protected double Merge(Cell current, ref int index, List<Cell> listToMerge, bool mergeOneOnly = false)
         {
             while ( index < listToMerge.Count )
             {
                 var next = listToMerge[index++];
 
                 while ( !CanMergeCells(current, next) )
-                { // If we cannot merge cells yet, go to the next cell and merge
-                  // next cells first. E.g. if we have 1+2*3, we first merge next
-                  // cells, i.e. 2*3, getting 6, and then we can merge 1+6.
+                { 
+                    // If we cannot merge cells yet, go to the next cell and merge
+                    // next cells first. E.g. if we have 1+2*3, we first merge next
+                    // cells, i.e. 2*3, getting 6, and then we can merge 1+6.
                     Merge(next, ref index, listToMerge, true /* mergeOneOnly */);
                 }
                 MergeCells(current, next);
@@ -219,6 +214,7 @@ namespace test_calcapp
         {
             return action?.Priority ?? 0;
         }
+
         protected Function GetFunction(string item, char ch)
         {
             if (item.Length == 0 && ch == StartArg)
